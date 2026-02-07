@@ -24,12 +24,9 @@
             padding: 10px;
             box-sizing: border-box;
             user-select: none;
-
-            /* ✅ анимация для свечения/нажатия */
             transition: filter .18s ease, transform .18s ease;
         }
 
-        /* ✅ КРАСИВОЕ СВЕЧЕНИЕ ПРИ ВЫБОРЕ (вместо рамки) */
         .card.sel {
             filter: drop-shadow(0 0 10px rgba(255,255,255,.85)) drop-shadow(0 0 22px rgba(3,218,198,.65));
             transform: scale(1.03);
@@ -40,19 +37,11 @@
             to   { filter: drop-shadow(0 0 14px rgba(255,255,255,.95)) drop-shadow(0 0 28px rgba(3,218,198,.75)); }
         }
 
-        /* лёгкая вспышка ошибки */
-        .card.bad {
-            filter: drop-shadow(0 0 10px rgba(255,60,60,.9)) drop-shadow(0 0 22px rgba(255,60,60,.55));
-        }
-
-        /* лёгкая вспышка успеха */
-        .card.good {
-            filter: drop-shadow(0 0 10px rgba(0,255,160,.9)) drop-shadow(0 0 22px rgba(0,255,160,.55));
-        }
+        .card.bad { filter: drop-shadow(0 0 10px rgba(255,60,60,.9)) drop-shadow(0 0 22px rgba(255,60,60,.55)); }
+        .card.good { filter: drop-shadow(0 0 10px rgba(0,255,160,.9)) drop-shadow(0 0 22px rgba(0,255,160,.55)); }
 
         .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; color: white; text-align: center; padding: 20px; background: rgba(0,0,0,0.95); }
         .overlay img { max-height: 200px; margin-bottom: 20px; border-radius: 15px; display: none; }
-        /* КНОПКА ТЕПЕРЬ ВСЕГДА ВИДИМА */
         .rb { margin-top: 20px; padding: 15px 40px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; font-size: 20px; color: #000; display: block !important; }
         #st-b { padding: 15px 40px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; font-size: 20px; color: #000; }
         #fb { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); width: 160px; height: 160px; z-index: 1000; transition: 0.3s; pointer-events: none; }
@@ -82,7 +71,6 @@
     const params = new URLSearchParams(window.location.search);
     const get = (n, d) => { let v = params.get(n); return (v===null||v==='null'||v==='') ? d : v; };
 
-    // ✅ Нормальный shuffle (рандом стабильнее чем sort(Math.random))
     function shuffle(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -100,7 +88,6 @@
         document.body.style.fontFamily = `'${font}', sans-serif`;
     }
 
-    // Заполнение текстов
     document.getElementById('st-t').innerText = get('st_t', 'Привет!');
     document.getElementById('st-d').innerText = get('st_d', 'Найди пары');
     document.getElementById('st-b').innerText = get('st_b', 'ИГРАТЬ');
@@ -110,7 +97,6 @@
     document.getElementById('lt').innerText = get('lt', 'Ой!');
     document.getElementById('ld').innerText = get('ld', 'Попробуй еще раз');
 
-    // Текст на кнопках рестарта
     const rbText = get('rb', 'ЗАНОВО');
     document.querySelectorAll('.rb').forEach(b => {
         b.innerText = rbText;
@@ -120,7 +106,7 @@
     if(get('wi')) { const i=document.getElementById('wi-img'); i.src=get('wi'); i.style.display='block'; }
     if(get('li')) { const i=document.getElementById('li-img'); i.src=get('li'); i.style.display='block'; }
 
-    // ✅ ПРАВКА ДЛЯ РАНДОМА: берём базу пар из pairs (новое) или all_data (старое)
+    // ====== ДАННЫЕ ПАР (новое pairs или старое all_data) ======
     let allData = [];
     try {
         const rawNew = get('pairs', null);
@@ -130,65 +116,156 @@
         allData = [];
     }
 
-    // Рандом базы
-    shuffle(allData);
-
+    // параметры выбора
     const limit = parseInt(get('limit', 2));
-
-    // ✅ extraCount (новое) или extra_c (старое)
     const extraCount = parseInt(params.has('extraCount') ? get('extraCount', 0) : get('extra_c', 0));
 
-    const activePairs = allData.slice(0, limit);
-    const remaining = allData.slice(limit);
-
-    let deck = [];
-    activePairs.forEach((p, i) => { deck.push({t: p.a, id: i}); deck.push({t: p.b, id: i}); });
-
-    let trapPool = [];
-    remaining.forEach(p => { trapPool.push(Math.random() > 0.5 ? p.a : p.b); });
-    shuffle(trapPool);
-    const finalTraps = trapPool.slice(0, extraCount);
-    finalTraps.forEach((t, i) => { deck.push({t: t, id: -100 - i}); });
-
-    shuffle(deck);
+    // ====== ФИКС ШРИФТА (200px работает) ======
+    let fSize = get('fsize', '25px');
+    if (/^\d+$/.test(fSize)) fSize = fSize + 'px';
 
     const speed = parseFloat(get('speed', 2));
     const cSize = parseInt(get('csize', 140));
 
-    // ✅ ФИКС ШРИФТА: чтобы 200px работало и не становилось 200pxpx
-    let fSize = get('fsize', '25px');
-    if (/^\d+$/.test(fSize)) fSize = fSize + 'px'; // если вдруг пришло "200" без px
-
-    let lives = 3, found = 0, selected = [], cards = [], gameStarted = false;
-
+    // ====== UI ======
     document.getElementById('p-bar').style.backgroundColor = get('pcolor', '#03dac6');
     const lDiv = document.getElementById('lives');
     for(let i=0; i<3; i++) lDiv.innerHTML += `<div class="life" style="background-image:url('${get('lifeimg','')}')"></div>`;
+
+    // ====== 4) ГРАНИЦЫ ДВИЖЕНИЯ: не залетаем под UI сверху ======
+    function getBounds() {
+        const ui = document.getElementById('ui');
+        const r = ui.getBoundingClientRect();
+        const topSafe = Math.ceil(r.bottom + 10); // чуть ниже UI
+        return {
+            minX: 0,
+            maxX: Math.max(0, window.innerWidth - cSize),
+            minY: Math.min(window.innerHeight - cSize, topSafe),
+            maxY: Math.max(0, window.innerHeight - cSize)
+        };
+    }
+
+    // ====== сборка колоды с условиями 1) и 3) ======
+    function buildDeckNoRepeat() {
+        // базу перемешиваем
+        const base = allData.slice();
+        shuffle(base);
+
+        // берём активные пары
+        const activePairs = base.slice(0, Math.min(limit, base.length));
+        const remaining = base.slice(activePairs.length);
+
+        // 1) ловушки не должны совпадать с текстом активных пар
+        const activeText = new Set();
+        activePairs.forEach(p => {
+            activeText.add(String(p.a));
+            activeText.add(String(p.b));
+        });
+
+        // собираем deck
+        let deck = [];
+        activePairs.forEach((p, i) => { deck.push({t: p.a, id: i}); deck.push({t: p.b, id: i}); });
+
+        // ловушки: из remaining, но фильтруем по activeText
+        let trapPool = [];
+        remaining.forEach(p => {
+            const pick = Math.random() > 0.5 ? p.a : p.b;
+            if (!activeText.has(String(pick))) trapPool.push(pick);
+        });
+
+        // уберём дубли ловушек
+        trapPool = Array.from(new Set(trapPool));
+        shuffle(trapPool);
+
+        const finalTraps = trapPool.slice(0, Math.max(0, extraCount));
+        finalTraps.forEach((t, i) => { deck.push({t: t, id: -100 - i}); });
+
+        shuffle(deck);
+
+        // подпись набора для анти-повтора
+        const sig = deck
+            .filter(x => x.id >= 0)
+            .map(x => `${x.id}:${x.t}`)
+            .sort()
+            .join('|') + `__traps:${finalTraps.join(',')}`;
+
+        return { deck, activePairs, sig };
+    }
+
+    // 3) анти-повтор набора при перезапуске/перезагрузке (в рамках вкладки)
+    const memoryKey = 'para.proba3.lastSig';
+    let built = null;
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+        const candidate = buildDeckNoRepeat();
+        const lastSig = sessionStorage.getItem(memoryKey);
+
+        if (!lastSig || candidate.sig !== lastSig || allData.length <= limit + 1) {
+            built = candidate;
+            sessionStorage.setItem(memoryKey, candidate.sig);
+            break;
+        }
+    }
+    if (!built) {
+        built = buildDeckNoRepeat();
+        sessionStorage.setItem(memoryKey, built.sig);
+    }
+
+    const deck = built.deck;
+    const activePairs = built.activePairs;
+
+    // ====== логика игры (как было) ======
+    let lives = 3, found = 0, selected = [], cards = [], gameStarted = false;
+
+    // 6) УМНАЯ РАСКЛАДКА: стараемся не накладывать бабочек при старте
+    function placeNonOverlapping(existing, bounds) {
+        const minDist = Math.max(30, Math.floor(cSize * 0.85)); // дистанция между центрами
+        const tries = 220;
+
+        for (let t = 0; t < tries; t++) {
+            const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+            const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+
+            let ok = true;
+            for (const p of existing) {
+                const dx = (p.x - x);
+                const dy = (p.y - y);
+                if ((dx*dx + dy*dy) < (minDist*minDist)) { ok = false; break; }
+            }
+            if (ok) return { x, y };
+        }
+        // если не получилось — просто случайно
+        return {
+            x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+            y: bounds.minY + Math.random() * (bounds.maxY - bounds.minY)
+        };
+    }
+
+    const bounds0 = getBounds();
+    const placed = [];
 
     deck.forEach(item => {
         const el = document.createElement('div');
         el.className = `card ${get('effect','')}`;
         el.innerText = item.t;
 
-        // ✅ тут тоже фикс: font-size ставим как строку, без добавления "px"
-        el.style.cssText = `width:${cSize}px; height:${cSize}px; background-image:url('${get('cimg','')}'); font-size:${fSize}; color:${get('fcolor','#fff')};`;
+        el.style.cssText =
+            `width:${cSize}px; height:${cSize}px; background-image:url('${get('cimg','')}'); font-size:${fSize}; color:${get('fcolor','#fff')};`;
 
         el.onclick = () => {
             if(selected.length < 2 && !el.dataset.done) {
-
-                // ✅ вместо рамки — красивое свечение
                 el.classList.add('sel');
-
                 selected.push({el, id: item.id});
+
                 if(selected.length === 2) {
                     const [s1, s2] = selected;
                     const fb = document.getElementById('fb');
 
                     if(s1.id === s2.id && s1.id >= 0) {
-                        found++;
-                        fb.src = get('winimg','');
+                        found++; fb.src = get('winimg','');
 
-                        document.getElementById('p-bar').style.width = (found/activePairs.length)*100 + '%';
+                        const denom = Math.max(1, activePairs.length);
+                        document.getElementById('p-bar').style.width = (found/denom)*100 + '%';
 
                         selected.forEach(s => {
                             s.el.classList.remove('sel');
@@ -199,13 +276,11 @@
 
                         if(found === activePairs.length) setTimeout(() => { document.getElementById('win-screen').style.display='flex'; gameStarted=false; }, 500);
                     } else {
-                        lives--;
-                        fb.src = get('loseimg','');
+                        lives--; fb.src = get('loseimg','');
 
                         const icons = document.querySelectorAll('.life');
                         if(icons[lives]) icons[lives].style.opacity = '0.1';
 
-                        // ✅ короткая красная вспышка + убираем свечение выбора
                         selected.forEach(s => {
                             s.el.classList.add('bad');
                             s.el.classList.remove('sel');
@@ -222,20 +297,46 @@
             }
         };
 
-        const cObj = { el, x: Math.random()*(window.innerWidth-cSize), y: Math.random()*(window.innerHeight-cSize), vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed };
-        document.getElementById('game').appendChild(el); cards.push(cObj);
+        // позиция + скорость (как было)
+        const pos = placeNonOverlapping(placed, bounds0);
+        placed.push(pos);
+
+        const cObj = {
+            el,
+            x: pos.x,
+            y: pos.y,
+            vx: (Math.random()-0.5)*speed,
+            vy: (Math.random()-0.5)*speed
+        };
+
+        document.getElementById('game').appendChild(el);
+        cards.push(cObj);
     });
 
-    function startGame() { document.getElementById('start-screen').style.display='none'; gameStarted=true; loop(); }
+    function startGame() {
+        document.getElementById('start-screen').style.display='none';
+        gameStarted=true;
+        loop();
+    }
+
     function loop() {
         if(!gameStarted) return;
+
+        const b = getBounds();
+
         cards.forEach(c => {
             if(c.el.dataset.done) return;
+
             c.x += c.vx; c.y += c.vy;
-            if(c.x < 0 || c.x > window.innerWidth-cSize) c.vx *= -1;
-            if(c.y < 0 || c.y > window.innerHeight-cSize) c.vy *= -1;
+
+            if(c.x < b.minX) { c.x = b.minX; c.vx *= -1; }
+            if(c.x > b.maxX) { c.x = b.maxX; c.vx *= -1; }
+            if(c.y < b.minY) { c.y = b.minY; c.vy *= -1; }
+            if(c.y > b.maxY) { c.y = b.maxY; c.vy *= -1; }
+
             c.el.style.transform = `translate(${c.x}px, ${c.y}px)`;
         });
+
         requestAnimationFrame(loop);
     }
 </script>
