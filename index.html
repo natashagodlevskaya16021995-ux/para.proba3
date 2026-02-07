@@ -1,197 +1,33 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<title>Game PROBA3</title>
+const params = new URLSearchParams(location.search);
 
-<style>
-
-body{
-background:#111;
-color:white;
-font-family:sans-serif;
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
-margin:0;
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-.wrap{
-width:900px;
-}
+// ✅ читаем ВСЮ базу
+const pairsBase = JSON.parse(params.get('pairs') || '[]');
+const limit = parseInt(params.get('limit') || pairsBase.length, 10);
+const extraCount = parseInt(params.get('extraCount') || '0', 10);
 
-.grid{
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:10px;
-}
+// ✅ на каждый запуск страницы — новая выборка
+shuffle(pairsBase);
 
-.card{
-background:#222;
-padding:20px;
-text-align:center;
-border-radius:10px;
-cursor:pointer;
-}
+// ✅ пары в игре
+const activePairs = pairsBase.slice(0, Math.min(limit, pairsBase.length));
+const rejectedPairs = pairsBase.slice(activePairs.length);
 
-.good{background:#2e7d32;}
-.bad{background:#c62828;}
+// ✅ делаем data в том формате, который у тебя уже был (A -> B)
+const dataObj = {};
+activePairs.forEach(p => { dataObj[p.a] = p.b; });
 
-button{
-margin-bottom:15px;
-padding:10px;
-background:#bb86fc;
-border:none;
-border-radius:8px;
-font-weight:bold;
-cursor:pointer;
-}
-
-</style>
-</head>
-
-<body>
-
-<div class="wrap">
-
-<button onclick="startGame()">ЗАНОВО (новые пары)</button>
-
-<div id="grid" class="grid"></div>
-
-</div>
-
-<script>
-
-function qs(){return new URLSearchParams(location.search);}
-
-function shuffle(arr){
-for(let i=arr.length-1;i>0;i--){
-const j=Math.floor(Math.random()*(i+1));
-[arr[i],arr[j]]=[arr[j],arr[i]];
-}
-}
-
-const params=qs();
-
-const fullPairs=JSON.parse(params.get("pairs")||"[]");
-const limit=parseInt(params.get("limit"))||fullPairs.length;
-const extra=parseInt(params.get("extra"))||0;
-
-let cards=[];
-
-function buildRound(){
-
-let base=[...fullPairs];
-
-shuffle(base);
-
-const active=base.slice(0,limit);
-const rejected=base.slice(limit);
-
-let trapPool=[];
-
-rejected.forEach(p=>{
-trapPool.push(Math.random()>0.5?p.a:p.b);
+// ✅ делаем extra (ловушки) как раньше: одиночки из оставшихся пар
+const pool = [];
+rejectedPairs.forEach(p => {
+  pool.push(Math.random() > 0.5 ? p.a : p.b);
 });
-
-shuffle(trapPool);
-
-const traps=trapPool.slice(0,extra);
-
-cards=[];
-
-active.forEach(p=>{
-cards.push({text:p.a,match:p.b,type:"pair"});
-cards.push({text:p.b,match:p.a,type:"pair"});
-});
-
-traps.forEach(t=>{
-cards.push({text:t,type:"trap"});
-});
-
-shuffle(cards);
-
-}
-
-let open=[];
-
-function render(){
-
-const grid=document.getElementById('grid');
-grid.innerHTML="";
-
-cards.forEach((c,i)=>{
-
-const div=document.createElement('div');
-div.className="card";
-div.textContent=c.text;
-
-div.onclick=()=>clickCard(i,div);
-
-grid.appendChild(div);
-
-});
-
-}
-
-function clickCard(i,el){
-
-if(open.length>=2)return;
-
-const card=cards[i];
-
-open.push({card,el});
-
-if(card.type==="trap"){
-
-el.classList.add("bad");
-
-setTimeout(()=>{
-el.classList.remove("bad");
-open=[];
-},800);
-
-return;
-}
-
-if(open.length===2){
-
-const[a,b]=open;
-
-if(a.card.match===b.card.text){
-
-a.el.classList.add("good");
-b.el.classList.add("good");
-
-}else{
-
-a.el.classList.add("bad");
-b.el.classList.add("bad");
-
-setTimeout(()=>{
-a.el.classList.remove("bad");
-b.el.classList.remove("bad");
-},800);
-
-}
-
-open=[];
-
-}
-
-}
-
-function startGame(){
-
-buildRound();
-render();
-
-}
-
-startGame();
-
-</script>
-
-</body>
-</html>
+shuffle(pool);
+const extraArr = pool.slice(0, Math.max(0, extraCount));
