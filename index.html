@@ -24,7 +24,7 @@
             padding: 10px;
             box-sizing: border-box;
             user-select: none;
-            transition: filter .18s ease, transform .18s ease;
+            transition: filter .4s ease, transform .18s ease;
         }
 
         .card.sel {
@@ -106,7 +106,6 @@
     if(get('wi')) { const i=document.getElementById('wi-img'); i.src=get('wi'); i.style.display='block'; }
     if(get('li')) { const i=document.getElementById('li-img'); i.src=get('li'); i.style.display='block'; }
 
-    // ====== ДАННЫЕ ПАР (новое pairs или старое all_data) ======
     let allData = [];
     try {
         const rawNew = get('pairs', null);
@@ -116,27 +115,24 @@
         allData = [];
     }
 
-    // параметры выбора
     const limit = parseInt(get('limit', 2));
     const extraCount = parseInt(params.has('extraCount') ? get('extraCount', 0) : get('extra_c', 0));
 
-    // ====== ФИКС ШРИФТА (200px работает) ======
     let fSize = get('fsize', '25px');
     if (/^\d+$/.test(fSize)) fSize = fSize + 'px';
 
     const speed = parseFloat(get('speed', 2));
     const cSize = parseInt(get('csize', 140));
 
-    // ====== UI ======
     document.getElementById('p-bar').style.backgroundColor = get('pcolor', '#03dac6');
     const lDiv = document.getElementById('lives');
     for(let i=0; i<3; i++) lDiv.innerHTML += `<div class="life" style="background-image:url('${get('lifeimg','')}')"></div>`;
 
-    // ====== 4) ГРАНИЦЫ ДВИЖЕНИЯ: не залетаем под UI сверху ======
+    // 4) границы движения (не под UI)
     function getBounds() {
         const ui = document.getElementById('ui');
         const r = ui.getBoundingClientRect();
-        const topSafe = Math.ceil(r.bottom + 10); // чуть ниже UI
+        const topSafe = Math.ceil(r.bottom + 10);
         return {
             minX: 0,
             maxX: Math.max(0, window.innerWidth - cSize),
@@ -145,35 +141,26 @@
         };
     }
 
-    // ====== сборка колоды с условиями 1) и 3) ======
+    // сборка deck с 1) и 3)
     function buildDeckNoRepeat() {
-        // базу перемешиваем
         const base = allData.slice();
         shuffle(base);
 
-        // берём активные пары
         const activePairs = base.slice(0, Math.min(limit, base.length));
         const remaining = base.slice(activePairs.length);
 
-        // 1) ловушки не должны совпадать с текстом активных пар
         const activeText = new Set();
-        activePairs.forEach(p => {
-            activeText.add(String(p.a));
-            activeText.add(String(p.b));
-        });
+        activePairs.forEach(p => { activeText.add(String(p.a)); activeText.add(String(p.b)); });
 
-        // собираем deck
         let deck = [];
         activePairs.forEach((p, i) => { deck.push({t: p.a, id: i}); deck.push({t: p.b, id: i}); });
 
-        // ловушки: из remaining, но фильтруем по activeText
         let trapPool = [];
         remaining.forEach(p => {
             const pick = Math.random() > 0.5 ? p.a : p.b;
             if (!activeText.has(String(pick))) trapPool.push(pick);
         });
 
-        // уберём дубли ловушек
         trapPool = Array.from(new Set(trapPool));
         shuffle(trapPool);
 
@@ -182,7 +169,6 @@
 
         shuffle(deck);
 
-        // подпись набора для анти-повтора
         const sig = deck
             .filter(x => x.id >= 0)
             .map(x => `${x.id}:${x.t}`)
@@ -192,7 +178,6 @@
         return { deck, activePairs, sig };
     }
 
-    // 3) анти-повтор набора при перезапуске/перезагрузке (в рамках вкладки)
     const memoryKey = 'para.proba3.lastSig';
     let built = null;
 
@@ -214,12 +199,11 @@
     const deck = built.deck;
     const activePairs = built.activePairs;
 
-    // ====== логика игры (как было) ======
     let lives = 3, found = 0, selected = [], cards = [], gameStarted = false;
 
-    // 6) УМНАЯ РАСКЛАДКА: стараемся не накладывать бабочек при старте
+    // 6) умная раскладка (без наложений)
     function placeNonOverlapping(existing, bounds) {
-        const minDist = Math.max(30, Math.floor(cSize * 0.85)); // дистанция между центрами
+        const minDist = Math.max(30, Math.floor(cSize * 0.85));
         const tries = 220;
 
         for (let t = 0; t < tries; t++) {
@@ -234,7 +218,7 @@
             }
             if (ok) return { x, y };
         }
-        // если не получилось — просто случайно
+
         return {
             x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
             y: bounds.minY + Math.random() * (bounds.maxY - bounds.minY)
@@ -248,9 +232,7 @@
         const el = document.createElement('div');
         el.className = `card ${get('effect','')}`;
         el.innerText = item.t;
-
-        el.style.cssText =
-            `width:${cSize}px; height:${cSize}px; background-image:url('${get('cimg','')}'); font-size:${fSize}; color:${get('fcolor','#fff')};`;
+        el.style.cssText = `width:${cSize}px; height:${cSize}px; background-image:url('${get('cimg','')}'); font-size:${fSize}; color:${get('fcolor','#fff')};`;
 
         el.onclick = () => {
             if(selected.length < 2 && !el.dataset.done) {
@@ -281,11 +263,17 @@
                         const icons = document.querySelectorAll('.life');
                         if(icons[lives]) icons[lives].style.opacity = '0.1';
 
-                        selected.forEach(s => {
-                            s.el.classList.add('bad');
-                            s.el.classList.remove('sel');
+                        // ✅ ВАЖНАЯ ПРАВКА: красное горит несколько секунд и потом исчезает
+                        const badEls = selected.map(s => s.el);
+
+                        badEls.forEach(elx => {
+                            elx.classList.add('bad');
+                            elx.classList.remove('sel');
                         });
-                        setTimeout(() => selected.forEach(s => s.el.classList.remove('bad')), 350);
+
+                        setTimeout(() => {
+                            badEls.forEach(elx => elx.classList.remove('bad'));
+                        }, 2000);
 
                         if(lives <= 0) setTimeout(() => { document.getElementById('lose-screen').style.display='flex'; gameStarted=false; }, 500);
                     }
@@ -297,7 +285,6 @@
             }
         };
 
-        // позиция + скорость (как было)
         const pos = placeNonOverlapping(placed, bounds0);
         placed.push(pos);
 
