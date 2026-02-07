@@ -10,7 +10,45 @@
         .life { width: 30px; height: 30px; background-size: contain; background-repeat: no-repeat; transition: 0.3s; }
         #p-wrap { width: 200px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
         #p-bar { width: 0%; height: 100%; transition: 0.3s; }
-        .card { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; padding: 10px; box-sizing: border-box; user-select: none; }
+
+        .card {
+            position: absolute;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            cursor: pointer;
+            padding: 10px;
+            box-sizing: border-box;
+            user-select: none;
+
+            /* ✅ анимация для свечения/нажатия */
+            transition: filter .18s ease, transform .18s ease;
+        }
+
+        /* ✅ КРАСИВОЕ СВЕЧЕНИЕ ПРИ ВЫБОРЕ (вместо рамки) */
+        .card.sel {
+            filter: drop-shadow(0 0 10px rgba(255,255,255,.85)) drop-shadow(0 0 22px rgba(3,218,198,.65));
+            transform: scale(1.03);
+            animation: pulseGlow .6s ease-in-out infinite alternate;
+        }
+        @keyframes pulseGlow {
+            from { filter: drop-shadow(0 0 8px rgba(255,255,255,.7)) drop-shadow(0 0 18px rgba(3,218,198,.45)); }
+            to   { filter: drop-shadow(0 0 14px rgba(255,255,255,.95)) drop-shadow(0 0 28px rgba(3,218,198,.75)); }
+        }
+
+        /* лёгкая вспышка ошибки */
+        .card.bad {
+            filter: drop-shadow(0 0 10px rgba(255,60,60,.9)) drop-shadow(0 0 22px rgba(255,60,60,.55));
+        }
+
+        /* лёгкая вспышка успеха */
+        .card.good {
+            filter: drop-shadow(0 0 10px rgba(0,255,160,.9)) drop-shadow(0 0 22px rgba(0,255,160,.55));
+        }
 
         .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; color: white; text-align: center; padding: 20px; background: rgba(0,0,0,0.95); }
         .overlay img { max-height: 200px; margin-bottom: 20px; border-radius: 15px; display: none; }
@@ -44,7 +82,7 @@
     const params = new URLSearchParams(window.location.search);
     const get = (n, d) => { let v = params.get(n); return (v===null||v==='null'||v==='') ? d : v; };
 
-    // ✅ Нормальный shuffle (чтобы реально рандом было)
+    // ✅ Нормальный shuffle (рандом стабильнее чем sort(Math.random))
     function shuffle(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -82,30 +120,12 @@
     if(get('wi')) { const i=document.getElementById('wi-img'); i.src=get('wi'); i.style.display='block'; }
     if(get('li')) { const i=document.getElementById('li-img'); i.src=get('li'); i.style.display='block'; }
 
-    // =========================================================
-    // ✅ ГЛАВНАЯ ПРАВКА: поддержка нового формата параметров
-    // Редактор теперь шлёт:
-    //   pairs (JSON массива пар)
-    //   limit
-    //   extraCount
-    //
-    // Старый формат тоже поддерживаем:
-    //   all_data
-    //   extra_c
-    // =========================================================
-
+    // ✅ ПРАВКА ДЛЯ РАНДОМА: берём базу пар из pairs (новое) или all_data (старое)
     let allData = [];
     try {
-        // новый параметр
         const rawNew = get('pairs', null);
-        // старый параметр
         const rawOld = get('all_data', '[]');
-
-        if (rawNew && rawNew !== 'null') {
-            allData = JSON.parse(rawNew);
-        } else {
-            allData = JSON.parse(rawOld);
-        }
+        allData = (rawNew && rawNew !== 'null') ? JSON.parse(rawNew) : JSON.parse(rawOld);
     } catch(e) {
         allData = [];
     }
@@ -113,22 +133,16 @@
     // Рандом базы
     shuffle(allData);
 
-    // limit — одинаковый в обоих вариантах
     const limit = parseInt(get('limit', 2));
 
-    // extraCount: новый extraCount или старый extra_c
-    const extraCount = parseInt(
-        (params.has('extraCount') ? get('extraCount', 0) : get('extra_c', 0))
-    );
+    // ✅ extraCount (новое) или extra_c (старое)
+    const extraCount = parseInt(params.has('extraCount') ? get('extraCount', 0) : get('extra_c', 0));
 
     const activePairs = allData.slice(0, limit);
     const remaining = allData.slice(limit);
 
     let deck = [];
-    activePairs.forEach((p, i) => {
-        deck.push({t: p.a, id: i});
-        deck.push({t: p.b, id: i});
-    });
+    activePairs.forEach((p, i) => { deck.push({t: p.a, id: i}); deck.push({t: p.b, id: i}); });
 
     let trapPool = [];
     remaining.forEach(p => { trapPool.push(Math.random() > 0.5 ? p.a : p.b); });
@@ -140,11 +154,14 @@
 
     const speed = parseFloat(get('speed', 2));
     const cSize = parseInt(get('csize', 140));
-    const fSize = get('fsize', '25'); // оставляю как у тебя
+
+    // ✅ ФИКС ШРИФТА: чтобы 200px работало и не становилось 200pxpx
+    let fSize = get('fsize', '25px');
+    if (/^\d+$/.test(fSize)) fSize = fSize + 'px'; // если вдруг пришло "200" без px
+
     let lives = 3, found = 0, selected = [], cards = [], gameStarted = false;
 
     document.getElementById('p-bar').style.backgroundColor = get('pcolor', '#03dac6');
-
     const lDiv = document.getElementById('lives');
     for(let i=0; i<3; i++) lDiv.innerHTML += `<div class="life" style="background-image:url('${get('lifeimg','')}')"></div>`;
 
@@ -153,37 +170,49 @@
         el.className = `card ${get('effect','')}`;
         el.innerText = item.t;
 
-        el.style.cssText = `width:${cSize}px; height:${cSize}px; background-image:url('${get('cimg','')}'); font-size:${fSize}px; color:${get('fcolor','#fff')};`;
+        // ✅ тут тоже фикс: font-size ставим как строку, без добавления "px"
+        el.style.cssText = `width:${cSize}px; height:${cSize}px; background-image:url('${get('cimg','')}'); font-size:${fSize}; color:${get('fcolor','#fff')};`;
 
         el.onclick = () => {
             if(selected.length < 2 && !el.dataset.done) {
-                el.style.outline = "4px solid white";
-                selected.push({el, id: item.id});
 
+                // ✅ вместо рамки — красивое свечение
+                el.classList.add('sel');
+
+                selected.push({el, id: item.id});
                 if(selected.length === 2) {
                     const [s1, s2] = selected;
                     const fb = document.getElementById('fb');
 
                     if(s1.id === s2.id && s1.id >= 0) {
-                        found++; fb.src = get('winimg','');
+                        found++;
+                        fb.src = get('winimg','');
 
-                        // защита от деления на 0, если вдруг нет пар
-                        const denom = Math.max(1, activePairs.length);
-                        document.getElementById('p-bar').style.width = (found/denom)*100 + '%';
+                        document.getElementById('p-bar').style.width = (found/activePairs.length)*100 + '%';
 
-                        selected.forEach(s => { s.el.style.display = 'none'; s.el.dataset.done = '1'; });
+                        selected.forEach(s => {
+                            s.el.classList.remove('sel');
+                            s.el.classList.add('good');
+                            s.el.style.display = 'none';
+                            s.el.dataset.done = '1';
+                        });
 
-                        if(found === activePairs.length) {
-                            setTimeout(() => { document.getElementById('win-screen').style.display='flex'; gameStarted=false; }, 500);
-                        }
+                        if(found === activePairs.length) setTimeout(() => { document.getElementById('win-screen').style.display='flex'; gameStarted=false; }, 500);
                     } else {
-                        lives--; fb.src = get('loseimg','');
+                        lives--;
+                        fb.src = get('loseimg','');
+
                         const icons = document.querySelectorAll('.life');
                         if(icons[lives]) icons[lives].style.opacity = '0.1';
 
-                        if(lives <= 0) setTimeout(() => { document.getElementById('lose-screen').style.display='flex'; gameStarted=false; }, 500);
+                        // ✅ короткая красная вспышка + убираем свечение выбора
+                        selected.forEach(s => {
+                            s.el.classList.add('bad');
+                            s.el.classList.remove('sel');
+                        });
+                        setTimeout(() => selected.forEach(s => s.el.classList.remove('bad')), 350);
 
-                        selected.forEach(s => s.el.style.outline = "none");
+                        if(lives <= 0) setTimeout(() => { document.getElementById('lose-screen').style.display='flex'; gameStarted=false; }, 500);
                     }
 
                     fb.style.transform = 'translate(-50%, -50%) scale(1)';
@@ -193,24 +222,11 @@
             }
         };
 
-        const cObj = {
-            el,
-            x: Math.random()*(window.innerWidth-cSize),
-            y: Math.random()*(window.innerHeight-cSize),
-            vx: (Math.random()-0.5)*speed,
-            vy: (Math.random()-0.5)*speed
-        };
-
-        document.getElementById('game').appendChild(el);
-        cards.push(cObj);
+        const cObj = { el, x: Math.random()*(window.innerWidth-cSize), y: Math.random()*(window.innerHeight-cSize), vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed };
+        document.getElementById('game').appendChild(el); cards.push(cObj);
     });
 
-    function startGame() {
-        document.getElementById('start-screen').style.display='none';
-        gameStarted=true;
-        loop();
-    }
-
+    function startGame() { document.getElementById('start-screen').style.display='none'; gameStarted=true; loop(); }
     function loop() {
         if(!gameStarted) return;
         cards.forEach(c => {
